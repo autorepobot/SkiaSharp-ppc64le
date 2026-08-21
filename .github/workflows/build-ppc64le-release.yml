@@ -193,12 +193,7 @@ jobs:
             test -f scripts/infra/native/linux/docker/glibc-ppc64le/Dockerfile
             test -f scripts/infra/native/linux/docker/glibc-ppc64le/startup.sh
 
-            echo
-            echo "=== Check v4 musttail (SKRP_MUSTTAIL) patch ==="
-            grep -n -A2 "^#if SK_HAS_MUSTTAIL" \
-              externals/skia/src/opts/SkRasterPipeline_opts.h
-            grep -n "SK_HAS_MUSTTAIL && !defined(__powerpc64__)" \
-              externals/skia/src/opts/SkRasterPipeline_opts.h
+            # v4 不需要检查 musttail patch，此处已被移除
 
           elif [[ "${SKIASHARP_MAJOR}" == "3" ]]; then
             echo
@@ -220,7 +215,7 @@ jobs:
               scripts/azure-templates-stages-native-merge.yml
 
             echo
-            echo "=== Check v3 musttail (JUMPER_MUSTTAIL) patch ==="
+            echo "=== Check v3 musttail (JUMPER_MUSTTAIL / SKRP_MUSTTAIL) patch ==="
             grep -n -A2 "^#if SK_HAS_MUSTTAIL" \
               externals/skia/src/opts/SkRasterPipeline_opts.h
             grep -n "SK_HAS_MUSTTAIL && !defined(__powerpc64__)" \
