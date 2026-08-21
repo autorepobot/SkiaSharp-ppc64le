@@ -107,8 +107,21 @@ jobs:
             "https://raw.githubusercontent.com/${PATCH_REPO}/${PATCH_REF}/skia.diff" \
             -o skia.diff
 
-          echo "=== Patch files ==="
+          echo "=== Patch files (common) ==="
           ls -lh SkiaSharp.diff skia.diff
+
+          # v3 uses the older Skia source layout, where the musttail macro is
+          # named JUMPER_MUSTTAIL instead of SKRP_MUSTTAIL (v4). skia.diff
+          # already covers the v4 case; skia-v3.diff carries the v3-specific
+          # musttail fix and is layered on top of skia.diff only for v3 builds.
+          if [[ "${SKIASHARP_MAJOR}" == "3" ]]; then
+            curl -fsSL \
+              "https://raw.githubusercontent.com/${PATCH_REPO}/${PATCH_REF}/skia-v3.diff" \
+              -o skia-v3.diff
+
+            echo "=== Patch files (v3 extra) ==="
+            ls -lh skia-v3.diff
+          fi
 
       - name: Apply SkiaSharp main-repository patch
         shell: bash
@@ -134,6 +147,16 @@ jobs:
 
           echo "Applying skia.diff inside externals/skia..."
           git -C externals/skia apply --verbose "$GITHUB_WORKSPACE/skia.diff"
+
+          if [[ "${SKIASHARP_MAJOR}" == "3" ]]; then
+            test -f "$GITHUB_WORKSPACE/skia-v3.diff"
+
+            echo "Checking skia-v3.diff inside externals/skia..."
+            git -C externals/skia apply --check "$GITHUB_WORKSPACE/skia-v3.diff"
+
+            echo "Applying skia-v3.diff inside externals/skia..."
+            git -C externals/skia apply --verbose "$GITHUB_WORKSPACE/skia-v3.diff"
+          fi
 
       - name: Verify ppc64le patch result
         shell: bash
@@ -169,6 +192,14 @@ jobs:
             echo "=== Check v4 ppc64le files ==="
             test -f scripts/infra/native/linux/docker/glibc-ppc64le/Dockerfile
             test -f scripts/infra/native/linux/docker/glibc-ppc64le/startup.sh
+
+            echo
+            echo "=== Check v4 musttail (SKRP_MUSTTAIL) patch ==="
+            grep -n -A2 "^#if SK_HAS_MUSTTAIL" \
+              externals/skia/src/opts/SkRasterPipeline_opts.h
+            grep -n "SK_HAS_MUSTTAIL && !defined(__powerpc64__)" \
+              externals/skia/src/opts/SkRasterPipeline_opts.h
+
           elif [[ "${SKIASHARP_MAJOR}" == "3" ]]; then
             echo
             echo "=== Check v3 ppc64le build files ==="
@@ -187,6 +218,13 @@ jobs:
 
             grep -n "native_linux_ppc64le_linux" \
               scripts/azure-templates-stages-native-merge.yml
+
+            echo
+            echo "=== Check v3 musttail (JUMPER_MUSTTAIL) patch ==="
+            grep -n -A2 "^#if SK_HAS_MUSTTAIL" \
+              externals/skia/src/opts/SkRasterPipeline_opts.h
+            grep -n "SK_HAS_MUSTTAIL && !defined(__powerpc64__)" \
+              externals/skia/src/opts/SkRasterPipeline_opts.h
           fi
 
       - name: Build glibc-ppc64le Docker image
