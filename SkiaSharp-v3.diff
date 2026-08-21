@@ -1,1 +1,186 @@
-
+diff --git a/binding/HarfBuzzSharp.NativeAssets.Linux/HarfBuzzSharp.NativeAssets.Linux.csproj b/binding/HarfBuzzSharp.NativeAssets.Linux/HarfBuzzSharp.NativeAssets.Linux.csproj
+index 68ede387c..15bc213ac 100644
+--- a/binding/HarfBuzzSharp.NativeAssets.Linux/HarfBuzzSharp.NativeAssets.Linux.csproj
++++ b/binding/HarfBuzzSharp.NativeAssets.Linux/HarfBuzzSharp.NativeAssets.Linux.csproj
+@@ -12,6 +12,7 @@
+     <PackageFile Include="..\..\output\native\linux\arm\libHarfBuzzSharp*.so" PackagePath="runtimes\linux-arm\native\%(Filename)%(Extension)" />
+     <PackageFile Include="..\..\output\native\linux\riscv64\libHarfBuzzSharp*.so" PackagePath="runtimes\linux-riscv64\native\%(Filename)%(Extension)" />
+     <PackageFile Include="..\..\output\native\linux\loongarch64\libHarfBuzzSharp*.so" PackagePath="runtimes\linux-loongarch64\native\%(Filename)%(Extension)" />
++    <PackageFile Include="..\..\output\native\linux\ppc64le\libHarfBuzzSharp*.so" PackagePath="runtimes\linux-ppc64le\native\%(Filename)%(Extension)" />
+     <!-- Musl -->
+     <PackageFile Include="..\..\output\native\alpine\x64\libHarfBuzzSharp*.so" PackagePath="runtimes\linux-musl-x64\native\%(Filename)%(Extension)" />
+     <PackageFile Include="..\..\output\native\alpine\x86\libHarfBuzzSharp*.so" PackagePath="runtimes\linux-musl-x86\native\%(Filename)%(Extension)" />
+diff --git a/binding/HarfBuzzSharp.NativeAssets.Linux/buildTransitive/net4/HarfBuzzSharp.targets b/binding/HarfBuzzSharp.NativeAssets.Linux/buildTransitive/net4/HarfBuzzSharp.targets
+index bcde14721..c3a98c6a8 100644
+--- a/binding/HarfBuzzSharp.NativeAssets.Linux/buildTransitive/net4/HarfBuzzSharp.targets
++++ b/binding/HarfBuzzSharp.NativeAssets.Linux/buildTransitive/net4/HarfBuzzSharp.targets
+@@ -28,6 +28,9 @@
+         <_NativeHarfBuzzSharpFile Include="$(MSBuildThisFileDirectory)..\..\runtimes\linux-loongarch64\native\libHarfBuzzSharp*.so">
+             <Dir>loongarch64\</Dir>
+         </_NativeHarfBuzzSharpFile>
++        <_NativeHarfBuzzSharpFile Include="$(MSBuildThisFileDirectory)..\..\runtimes\linux-ppc64le\native\libHarfBuzzSharp*.so">
++            <Dir>ppc64le\</Dir>
++        </_NativeHarfBuzzSharpFile>
+ 
+         <!-- Musl -->
+         <_NativeHarfBuzzSharpFile Include="$(MSBuildThisFileDirectory)..\..\runtimes\linux-musl-x86\native\libHarfBuzzSharp*.so">
+diff --git a/binding/SkiaSharp.NativeAssets.Linux.NoDependencies/SkiaSharp.NativeAssets.Linux.NoDependencies.csproj b/binding/SkiaSharp.NativeAssets.Linux.NoDependencies/SkiaSharp.NativeAssets.Linux.NoDependencies.csproj
+index 4ea85b29a..a0eada4ef 100644
+--- a/binding/SkiaSharp.NativeAssets.Linux.NoDependencies/SkiaSharp.NativeAssets.Linux.NoDependencies.csproj
++++ b/binding/SkiaSharp.NativeAssets.Linux.NoDependencies/SkiaSharp.NativeAssets.Linux.NoDependencies.csproj
+@@ -23,6 +23,7 @@ The excluded dependencies are:
+     <PackageFile Include="..\..\output\native\linuxnodeps\arm\libSkiaSharp*.so" PackagePath="runtimes\linux-arm\native\%(Filename)%(Extension)" />
+     <PackageFile Include="..\..\output\native\linuxnodeps\riscv64\libSkiaSharp*.so" PackagePath="runtimes\linux-riscv64\native\%(Filename)%(Extension)" />
+     <PackageFile Include="..\..\output\native\linuxnodeps\loongarch64\libSkiaSharp*.so" PackagePath="runtimes\linux-loongarch64\native\%(Filename)%(Extension)" />
++    <PackageFile Include="..\..\output\native\linuxnodeps\ppc64le\libSkiaSharp*.so" PackagePath="runtimes\linux-ppc64le\native\%(Filename)%(Extension)" />
+     <!-- Musl -->
+     <PackageFile Include="..\..\output\native\alpinenodeps\x64\libSkiaSharp*.so" PackagePath="runtimes\linux-musl-x64\native\%(Filename)%(Extension)" />
+     <PackageFile Include="..\..\output\native\alpinenodeps\x86\libSkiaSharp*.so" PackagePath="runtimes\linux-musl-x86\native\%(Filename)%(Extension)" />
+diff --git a/binding/SkiaSharp.NativeAssets.Linux.NoDependencies/buildTransitive/net4/SkiaSharp.targets b/binding/SkiaSharp.NativeAssets.Linux.NoDependencies/buildTransitive/net4/SkiaSharp.targets
+index f06e337c2..dcf224652 100644
+--- a/binding/SkiaSharp.NativeAssets.Linux.NoDependencies/buildTransitive/net4/SkiaSharp.targets
++++ b/binding/SkiaSharp.NativeAssets.Linux.NoDependencies/buildTransitive/net4/SkiaSharp.targets
+@@ -28,6 +28,9 @@
+         <_NativeSkiaSharpFile Include="$(MSBuildThisFileDirectory)..\..\runtimes\linux-loongarch64\native\libSkiaSharp*.so">
+             <Dir>loongarch64\</Dir>
+         </_NativeSkiaSharpFile>
++        <_NativeSkiaSharpFile Include="$(MSBuildThisFileDirectory)..\..\runtimes\linux-ppc64le\native\libSkiaSharp*.so">
++            <Dir>ppc64le\</Dir>
++        </_NativeSkiaSharpFile>
+ 
+         <!-- Musl -->
+         <_NativeSkiaSharpFile Include="$(MSBuildThisFileDirectory)..\..\runtimes\linux-musl-x86\native\libSkiaSharp*.so">
+diff --git a/binding/SkiaSharp.NativeAssets.Linux/SkiaSharp.NativeAssets.Linux.csproj b/binding/SkiaSharp.NativeAssets.Linux/SkiaSharp.NativeAssets.Linux.csproj
+index 045e0b9f4..f424b41cf 100644
+--- a/binding/SkiaSharp.NativeAssets.Linux/SkiaSharp.NativeAssets.Linux.csproj
++++ b/binding/SkiaSharp.NativeAssets.Linux/SkiaSharp.NativeAssets.Linux.csproj
+@@ -11,6 +11,7 @@
+     <PackageFile Include="..\..\output\native\linux\arm64\libSkiaSharp*.so" PackagePath="runtimes\linux-arm64\native\%(Filename)%(Extension)" />
+     <PackageFile Include="..\..\output\native\linux\arm\libSkiaSharp*.so" PackagePath="runtimes\linux-arm\native\%(Filename)%(Extension)" />
+     <PackageFile Include="..\..\output\native\linux\riscv64\libSkiaSharp*.so" PackagePath="runtimes\linux-riscv64\native\%(Filename)%(Extension)" />
++    <PackageFile Include="..\..\output\native\linux\ppc64le\libSkiaSharp*.so" PackagePath="runtimes\linux-ppc64le\native\%(Filename)%(Extension)" />
+     <PackageFile Include="..\..\output\native\linux\loongarch64\libSkiaSharp*.so" PackagePath="runtimes\linux-loongarch64\native\%(Filename)%(Extension)" />
+     <!-- Musl -->
+     <PackageFile Include="..\..\output\native\alpine\x64\libSkiaSharp*.so" PackagePath="runtimes\linux-musl-x64\native\%(Filename)%(Extension)" />
+diff --git a/binding/SkiaSharp.NativeAssets.Linux/buildTransitive/net4/SkiaSharp.targets b/binding/SkiaSharp.NativeAssets.Linux/buildTransitive/net4/SkiaSharp.targets
+index f06e337c2..dcf224652 100644
+--- a/binding/SkiaSharp.NativeAssets.Linux/buildTransitive/net4/SkiaSharp.targets
++++ b/binding/SkiaSharp.NativeAssets.Linux/buildTransitive/net4/SkiaSharp.targets
+@@ -28,6 +28,9 @@
+         <_NativeSkiaSharpFile Include="$(MSBuildThisFileDirectory)..\..\runtimes\linux-loongarch64\native\libSkiaSharp*.so">
+             <Dir>loongarch64\</Dir>
+         </_NativeSkiaSharpFile>
++        <_NativeSkiaSharpFile Include="$(MSBuildThisFileDirectory)..\..\runtimes\linux-ppc64le\native\libSkiaSharp*.so">
++            <Dir>ppc64le\</Dir>
++        </_NativeSkiaSharpFile>
+ 
+         <!-- Musl -->
+         <_NativeSkiaSharpFile Include="$(MSBuildThisFileDirectory)..\..\runtimes\linux-musl-x86\native\libSkiaSharp*.so">
+diff --git a/documentation/dev/packages.md b/documentation/dev/packages.md
+index 2a4b3bac6..6a1a78497 100644
+--- a/documentation/dev/packages.md
++++ b/documentation/dev/packages.md
+@@ -83,7 +83,7 @@ Both follow the same platform matrix and architectures. HarfBuzzSharp does **not
+ |---------|-------------|
+ | **SkiaSharp.NativeAssets.Win32**<br/>**HarfBuzzSharp.NativeAssets.Win32** | Windows (x64, x86, arm64). Auto-included. |
+ | **SkiaSharp.NativeAssets.macOS**<br/>**HarfBuzzSharp.NativeAssets.macOS** | macOS universal binary (Intel + Apple Silicon). Auto-included. |
+-| **SkiaSharp.NativeAssets.Linux**<br/>**HarfBuzzSharp.NativeAssets.Linux** | Linux (x64, x86, arm, arm64, riscv64, loongarch64). Both glibc and musl (Alpine) variants. **Must add manually.** Requires fontconfig (`libfontconfig.so.1`) for system font enumeration. |
++| **SkiaSharp.NativeAssets.Linux**<br/>**HarfBuzzSharp.NativeAssets.Linux** | Linux (x64, x86, arm, arm64, riscv64, loongarch64, ppc64le). Both glibc and musl (Alpine) variants. **Must add manually.** Requires fontconfig (`libfontconfig.so.1`) for system font enumeration. |
+ | **SkiaSharp.NativeAssets.Linux.NoDependencies** | Linux (same architectures as above, glibc + musl). **SkiaSharp only. Must add manually.** No fontconfig, no third-party deps — only requires libc/libm/libpthread/libdl. **Designed for minimal containers.** Fonts must be loaded explicitly. |
+ | **SkiaSharp.NativeAssets.NanoServer** | Windows Nano Server containers (x64 only). **SkiaSharp only. Must add manually.** |
+ | **SkiaSharp.NativeAssets.WinUI** | ANGLE rendering surface for WinUI 3 apps (x64, x86, arm64). **SkiaSharp only.** Contains `SkiaSharp.Views.WinUI.Native.dll`, `libEGL.dll`, and `libGLESv2.dll` for hardware-accelerated OpenGL ES — this is **not** a Skia binary. Auto-included by SkiaSharp.Views.WinUI. |
+diff --git a/scripts/Docker/_clang-cross-common.sh b/scripts/Docker/_clang-cross-common.sh
+index 567881d6c..fb8b2502f 100755
+--- a/scripts/Docker/_clang-cross-common.sh
++++ b/scripts/Docker/_clang-cross-common.sh
+@@ -3,7 +3,7 @@ set -ex
+ 
+ # Parameters:
+ # $1 - The directory containing the Dockerfile  [ clang-cross/10 | clang-cross ]
+-# $2 - The target architecture to build for     [ arm | arm64 | riscv64 | x86 | x64 | loongarch64 ]
++# $2 - The target architecture to build for     [ arm | arm64 | riscv64 | x86 | x64 | loongarch64 | ppc64le ]
+ # $3 - The ABI                                  [ gnu | musl ]
+ # $4 - The variant                              [ "" | alpine ]
+ # $5 - Extra arguments to pass to dotnet cake
+diff --git a/scripts/Docker/debian/13/Dockerfile b/scripts/Docker/debian/13/Dockerfile
+index 156456b55..9c491c751 100644
+--- a/scripts/Docker/debian/13/Dockerfile
++++ b/scripts/Docker/debian/13/Dockerfile
+@@ -18,6 +18,7 @@ RUN case ${BUILD_ARCH} in \
+         arm)         TOOLCHAIN_ARCH=arm-linux-gnueabihf       ; TOOLCHAIN_ARCH_SHORT=armhf   ; TOOLCHAIN_ARCH_TARGET=armv7a-linux-gnueabihf     ;; \
+         arm64)       TOOLCHAIN_ARCH=aarch64-linux-gnu         ; TOOLCHAIN_ARCH_SHORT=arm64   ; TOOLCHAIN_ARCH_TARGET=aarch64-linux-gnu          ;; \
+         loongarch64) TOOLCHAIN_ARCH=loongarch64-linux-gnu     ; TOOLCHAIN_ARCH_SHORT=loong64 ; TOOLCHAIN_ARCH_TARGET=loongarch64-linux-gnu      ;; \
++        ppc64le)     TOOLCHAIN_ARCH=powerpc64le-linux-gnu     ; TOOLCHAIN_ARCH_SHORT=ppc64el ; TOOLCHAIN_ARCH_TARGET=powerpc64le-linux-gnu      ;; \
+         riscv64)     TOOLCHAIN_ARCH=riscv64-linux-gnu         ; TOOLCHAIN_ARCH_SHORT=riscv64 ; TOOLCHAIN_ARCH_TARGET=riscv64-linux-gnu          ;; \
+         x86)         TOOLCHAIN_ARCH=i686-linux-gnu            ; TOOLCHAIN_ARCH_SHORT=i386    ; TOOLCHAIN_ARCH_TARGET=i686-linux-gnu             ;; \
+         x64)         TOOLCHAIN_ARCH=x86-64-linux-gnu          ; TOOLCHAIN_ARCH_SHORT=amd64   ; TOOLCHAIN_ARCH_TARGET=x86_64-linux-gnu           ;; \
+@@ -62,6 +63,7 @@ RUN . /etc/skia-env \
+     && case "${TOOLCHAIN_ARCH_SHORT}" in \
+          loong64) FC_VERSION=2.17.1-5   ; FC_DEV_PKG=libfontconfig-dev  ; FC_RT_PKG=libfontconfig1 ; APT_REPO=http://deb.debian.org/debian ;; \
+          riscv64) FC_VERSION=2.15.0-2.3 ; FC_DEV_PKG=libfontconfig-dev  ; FC_RT_PKG=libfontconfig1 ; APT_REPO=http://deb.debian.org/debian ;; \
++         ppc64el) FC_VERSION=2.15.0-2.3 ; FC_DEV_PKG=libfontconfig-dev  ; FC_RT_PKG=libfontconfig1 ; APT_REPO=http://deb.debian.org/debian ;; \
+          *)       FC_VERSION=2.13.1-4.2 ; FC_DEV_PKG=libfontconfig1-dev ; FC_RT_PKG=libfontconfig1 ; APT_REPO=http://deb.debian.org/debian ;; \
+        esac \
+     && TOOLCHAIN_ARCH=$(echo ${TOOLCHAIN_ARCH} | sed 's/x86-64/x86_64/g') \
+diff --git a/scripts/Docker/debian/13/build-local.sh b/scripts/Docker/debian/13/build-local.sh
+index c5cbdf36d..cd187ac44 100644
+--- a/scripts/Docker/debian/13/build-local.sh
++++ b/scripts/Docker/debian/13/build-local.sh
+@@ -2,7 +2,7 @@
+ set -ex
+ 
+ # Parameters:
+-# $1 - The target architecture to build for     [ arm | arm64 | riscv64 | x86 | x64 | loongarch64 ]
++# $1 - The target architecture to build for     [ arm | arm64 | riscv64 | x86 | x64 | loongarch64| ppc64le ]
+ # $2+ - Additional arguments to pass to the cake script
+ 
+ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+diff --git a/scripts/azure-templates-stages-native-linux.yml b/scripts/azure-templates-stages-native-linux.yml
+index bba6018e5..a2226ec8b 100644
+--- a/scripts/azure-templates-stages-native-linux.yml
++++ b/scripts/azure-templates-stages-native-linux.yml
+@@ -30,6 +30,9 @@ stages:
+               docker: scripts/Docker/debian/13
+               target: externals-linux-clang-cross
+               additionalArgs: --verifyGlibcMax=2.38
++            - arch: ppc64le
++              docker: scripts/Docker/debian/13
++              target: externals-linux-clang-cross
+             - ${{ each arch in split('arm,arm64,x86,x64,riscv64', ',') }}:
+               - arch: ${{ arch }}
+                 docker: scripts/Docker/debian/10
+diff --git a/scripts/azure-templates-stages-native-merge.yml b/scripts/azure-templates-stages-native-merge.yml
+index fe3801906..e1e03cdfb 100644
+--- a/scripts/azure-templates-stages-native-merge.yml
++++ b/scripts/azure-templates-stages-native-merge.yml
+@@ -63,6 +63,8 @@ stages:
+             - name: native_linux_loongarch64_alpine_nodeps_linux
+             - name: native_linux_loongarch64_linux
+             - name: native_linux_loongarch64_nodeps_linux
++            - name: native_linux_ppc64le_linux
++            - name: native_linux_ppc64le_nodeps_linux
+             - name: native_linux_riscv64_alpine_linux
+             - name: native_linux_riscv64_alpine_nodeps_linux
+             - name: native_linux_riscv64_linux
+@@ -110,6 +112,8 @@ stages:
+             - name: native_linux_loongarch64_alpine_nodeps_linux
+             - name: native_linux_loongarch64_linux
+             - name: native_linux_loongarch64_nodeps_linux
++            - name: native_linux_ppc64le_linux
++            - name: native_linux_ppc64le_nodeps_linux
+             - name: native_linux_riscv64_alpine_linux
+             - name: native_linux_riscv64_alpine_nodeps_linux
+             - name: native_linux_riscv64_linux
+diff --git a/scripts/cake/native-shared.cake b/scripts/cake/native-shared.cake
+index ea264584d..1fc64105e 100644
+--- a/scripts/cake/native-shared.cake
++++ b/scripts/cake/native-shared.cake
+@@ -244,6 +244,8 @@ string ReduceArch(string arch)
+             return "arm64";
+         case "riscv64":
+             return "riscv64";
++        case "ppc64le":
++            return "ppc64le";
+         case "loong64":
+         case "loongarch64":
+             return "loongarch64";
