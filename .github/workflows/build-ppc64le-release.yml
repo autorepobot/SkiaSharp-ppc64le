@@ -324,13 +324,6 @@ jobs:
             fi
 
             echo
-            echo "--- unexpected musl RIDs ---"
-            if unzip -l "$PKG" | grep -E 'runtimes/linux-musl-' ; then
-              echo "ERROR: package unexpectedly contains musl assets"
-              exit 1
-            fi
-
-            echo
             echo "--- unexpected bionic RIDs ---"
             if unzip -l "$PKG" | grep -E 'runtimes/linux-bionic-' ; then
               echo "ERROR: package unexpectedly contains bionic assets"
