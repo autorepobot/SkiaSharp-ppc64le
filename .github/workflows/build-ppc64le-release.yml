@@ -19,7 +19,7 @@ concurrency:
 env:
   PATCH_REPO: autorepobot/SkiaSharp-ppc64le
   PATCH_REF: main
-  GLIBC_MAX_VERSION: "2.27"
+  GLIBC_MAX_VERSION: "2.38"
 
 jobs:
   build:
