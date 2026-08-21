@@ -229,8 +229,8 @@ jobs:
           # NuGet prerelease version.
           PACKAGE_VERSION="${SOURCE_VERSION}-ppc64le"
 
-          # Separate release tag so we never collide with the official source tag.
-          RELEASE_TAG="ppc64le-${SOURCE_TAG}-${GITHUB_RUN_ID}"
+          # Release tag is exactly the source tag.
+          RELEASE_TAG="${SOURCE_TAG}"
 
           echo "SOURCE_VERSION=$SOURCE_VERSION" >> "$GITHUB_ENV"
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
@@ -385,4 +385,4 @@ jobs:
           echo "Release tag:     ${RELEASE_TAG}"
           echo
           gh release view "${RELEASE_TAG}" \
-            --repo "${GITHUB_REPOSITORY}"
+            --repo "${GITHUB_REPOSITORY}" \
