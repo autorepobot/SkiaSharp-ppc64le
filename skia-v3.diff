@@ -1,0 +1,11 @@
+--- a/src/opts/SkRasterPipeline_opts.h
++++ b/src/opts/SkRasterPipeline_opts.h
+@@ -xxxx,7 +xxxx,7 @@
+     }
+ }
+ 
+-#if SK_HAS_MUSTTAIL
++#if SK_HAS_MUSTTAIL && !defined(__powerpc64__)
+     #define JUMPER_MUSTTAIL [[clang::musttail]]
+ #else
+     #define JUMPER_MUSTTAIL
