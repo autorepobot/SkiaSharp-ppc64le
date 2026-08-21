@@ -220,11 +220,9 @@ jobs:
               scripts/azure-templates-stages-native-merge.yml
 
             echo
-            echo "=== Check v3 musttail (JUMPER_MUSTTAIL) patch ==="
-            grep -n -A2 "^#if SK_HAS_MUSTTAIL" \
-              externals/skia/src/opts/SkRasterPipeline_opts.h
-            grep -n "SK_HAS_MUSTTAIL && !defined(__powerpc64__)" \
-              externals/skia/src/opts/SkRasterPipeline_opts.h
+            echo "=== Check v3 musttail (SK_HAS_MUSTTAIL) patch ==="
+            grep -n "SK_CPU_PPC" \
+              externals/skia/src/core/SkRasterPipeline.h
           fi
 
       - name: Build glibc-ppc64le Docker image
@@ -305,7 +303,7 @@ jobs:
               echo "ERROR: missing $SO"
               echo
               echo "Produced files:"
-              find output/native/linux -maxdepth 2 -type f -print 2>/dev/null || true
+              find output/native/linux -maxdepth 2 -type f -print 2>/devnull || true
               exit 1
             fi
 
