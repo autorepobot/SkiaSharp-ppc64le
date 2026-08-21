@@ -385,5 +385,4 @@ jobs:
           echo "Release tag:     ${RELEASE_TAG}"
           echo
           gh release view "${RELEASE_TAG}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --web
+            --repo "${GITHUB_REPOSITORY}"
