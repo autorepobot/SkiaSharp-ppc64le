@@ -1,14 +1,13 @@
-diff --git a/src/core/SkRasterPipeline.h b/src/core/SkRasterPipeline.h
-index dc5fb4b8f249..2b285a8ff360 100644
---- a/src/core/SkRasterPipeline.h
-+++ b/src/core/SkRasterPipeline.h
-@@ -24,7 +24,8 @@ enum SkColorType : int;
- struct SkImageInfo;
- struct skcms_TransferFunction;
+diff --git a/src/opts/SkRasterPipeline_opts.h b/src/opts/SkRasterPipeline_opts.h
+index 06ccfd7df26b..64f4ea7ad57b 100644
+--- a/src/opts/SkRasterPipeline_opts.h
++++ b/src/opts/SkRasterPipeline_opts.h
+@@ -1206,7 +1206,7 @@ static void start_pipeline(size_t dx, size_t dy,
+     }
+ }
  
--#if __has_cpp_attribute(clang::musttail) && !defined(__EMSCRIPTEN__) && !defined(SK_CPU_ARM32)
-+#if __has_cpp_attribute(clang::musttail) && !defined(__EMSCRIPTEN__) && \
-+        !defined(SK_CPU_ARM32) && !defined(SK_CPU_PPC)
-     #define SK_HAS_MUSTTAIL 1
+-#if SK_HAS_MUSTTAIL
++#if SK_HAS_MUSTTAIL && !defined(__powerpc64__)
+     #define JUMPER_MUSTTAIL [[clang::musttail]]
  #else
-     #define SK_HAS_MUSTTAIL 0
+     #define JUMPER_MUSTTAIL
