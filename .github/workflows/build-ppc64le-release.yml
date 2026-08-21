@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "SkiaSharp source tag, e.g. v3.119.4"
+        description: "SkiaSharp source tag, e.g. v4.151.1"
         required: true
         type: string
-        default: "v3.119.4"
+        default: "v4.151.1"
 
 permissions:
   contents: write
