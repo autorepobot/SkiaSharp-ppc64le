@@ -1,6 +1,8 @@
+diff --git a/src/opts/SkRasterPipeline_opts.h b/src/opts/SkRasterPipeline_opts.h
+index 06ccfd7df26b..64f4ea7ad57b 100644
 --- a/src/opts/SkRasterPipeline_opts.h
 +++ b/src/opts/SkRasterPipeline_opts.h
-@@ -xxxx,7 +xxxx,7 @@
+@@ -1206,7 +1206,7 @@ static void start_pipeline(size_t dx, size_t dy,
      }
  }
  
