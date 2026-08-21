@@ -136,16 +136,17 @@ index c5cbdf36d..cd187ac44 100644
  
  DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 diff --git a/scripts/azure-templates-stages-native-linux.yml b/scripts/azure-templates-stages-native-linux.yml
-index bba6018e5..a2226ec8b 100644
+index bba6018e5..372c11910 100644
 --- a/scripts/azure-templates-stages-native-linux.yml
 +++ b/scripts/azure-templates-stages-native-linux.yml
-@@ -30,6 +30,9 @@ stages:
+@@ -30,6 +30,10 @@ stages:
                docker: scripts/Docker/debian/13
                target: externals-linux-clang-cross
                additionalArgs: --verifyGlibcMax=2.38
 +            - arch: ppc64le
 +              docker: scripts/Docker/debian/13
 +              target: externals-linux-clang-cross
++              additionalArgs: --verifyGlibcMax=2.38
              - ${{ each arch in split('arm,arm64,x86,x64,riscv64', ',') }}:
                - arch: ${{ arch }}
                  docker: scripts/Docker/debian/10
