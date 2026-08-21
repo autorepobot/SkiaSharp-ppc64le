@@ -39,6 +39,16 @@ jobs:
             exit 1
           fi
 
+          if [[ "$VERSION" =~ ^v4\. ]]; then
+            echo "SKIASHARP_MAJOR=4" >> "$GITHUB_ENV"
+          elif [[ "$VERSION" =~ ^v3\. ]]; then
+            echo "SKIASHARP_MAJOR=3" >> "$GITHUB_ENV"
+          else
+            echo "Unsupported SkiaSharp major version: $VERSION"
+            echo "Supported versions: v3.x.x and v4.x.x"
+            exit 1
+          fi
+
           echo "SOURCE_TAG=$VERSION" >> "$GITHUB_ENV"
 
       - name: Checkout SkiaSharp source tag
@@ -72,17 +82,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          VERSION="${SOURCE_TAG}"
+          case "${SKIASHARP_MAJOR}" in
+            4)
+              SKIASHARP_PATCH="SkiaSharp-v4.diff"
+              ;;
+            3)
+              SKIASHARP_PATCH="SkiaSharp-v3.diff"
+              ;;
+            *)
+              echo "Unsupported SkiaSharp major version: ${SKIASHARP_MAJOR}"
+              exit 1
+              ;;
+          esac
 
-          if [[ "$VERSION" =~ ^v4\. ]]; then
-            SKIASHARP_PATCH="SkiaSharp-v4.diff"
-          elif [[ "$VERSION" =~ ^v3\. ]]; then
-            SKIASHARP_PATCH="SkiaSharp-v3.diff"
-          else
-            echo "Unsupported SkiaSharp major version: $VERSION"
-            echo "Supported versions: v3.x.x and v4.x.x"
-            exit 1
-          fi
+          echo "SKIASHARP_PATCH=${SKIASHARP_PATCH}" >> "$GITHUB_ENV"
 
           echo "Using SkiaSharp patch: ${SKIASHARP_PATCH}"
 
@@ -131,9 +144,9 @@ jobs:
           git status --short
 
           echo
-          echo "=== Check ppc64le files ==="
-          test -f scripts/infra/native/linux/docker/glibc-ppc64le/Dockerfile
-          test -f scripts/infra/native/linux/docker/glibc-ppc64le/startup.sh
+          echo "=== Selected version ==="
+          echo "SkiaSharp major: ${SKIASHARP_MAJOR}"
+          echo "SkiaSharp patch: ${SKIASHARP_PATCH}"
 
           echo
           echo "=== Check Linux native packaging changes ==="
@@ -151,7 +164,33 @@ jobs:
           grep -n "filter_vsx_intrinsics.c" \
             externals/skia/third_party/libpng/BUILD.gn
 
+          if [[ "${SKIASHARP_MAJOR}" == "4" ]]; then
+            echo
+            echo "=== Check v4 ppc64le files ==="
+            test -f scripts/infra/native/linux/docker/glibc-ppc64le/Dockerfile
+            test -f scripts/infra/native/linux/docker/glibc-ppc64le/startup.sh
+          elif [[ "${SKIASHARP_MAJOR}" == "3" ]]; then
+            echo
+            echo "=== Check v3 ppc64le build files ==="
+            test -f scripts/Docker/debian/13/Dockerfile
+            test -f scripts/Docker/debian/13/build-local.sh
+
+            echo
+            echo "=== Check v3 ppc64le Docker changes ==="
+            grep -n "ppc64le" scripts/Docker/debian/13/Dockerfile
+            grep -n "ppc64le" scripts/Docker/debian/13/build-local.sh
+
+            echo
+            echo "=== Check v3 ppc64le native build template ==="
+            grep -n "arch: ppc64le" \
+              scripts/azure-templates-stages-native-linux.yml
+
+            grep -n "native_linux_ppc64le_linux" \
+              scripts/azure-templates-stages-native-merge.yml
+          fi
+
       - name: Build glibc-ppc64le Docker image
+        if: env.SKIASHARP_MAJOR == '4'
         working-directory: scripts/infra/native/linux/docker/glibc-ppc64le
         shell: bash
         run: |
@@ -161,24 +200,52 @@ jobs:
             --tag skiasharp-ppc64le:${GITHUB_RUN_ID} \
             .
 
+      - name: Build debian-13 ppc64le Docker image
+        if: env.SKIASHARP_MAJOR == '3'
+        working-directory: scripts/Docker/debian/13
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker build \
+            --build-arg BUILD_ARCH=ppc64le \
+            --tag skiasharp-ppc64le:${GITHUB_RUN_ID} \
+            .
+
       - name: Build ppc64le native libraries
         shell: bash
         run: |
           set -euo pipefail
 
-          docker run --rm \
-            --name skiasharp-ppc64le-${GITHUB_RUN_ID} \
-            --volume "${GITHUB_WORKSPACE}:/work" \
-            --workdir /work \
-            "skiasharp-ppc64le:${GITHUB_RUN_ID}" \
-            /bin/bash -c "
-              dotnet tool restore &&
-              dotnet cake \
-                --target=externals-linux-clang-cross \
-                --configuration=Release \
-                --buildarch=ppc64le \
-                --verifyGlibcMax=${GLIBC_MAX_VERSION}
-            "
+          if [[ "${SKIASHARP_MAJOR}" == "4" ]]; then
+            docker run --rm \
+              --name skiasharp-ppc64le-${GITHUB_RUN_ID} \
+              --volume "${GITHUB_WORKSPACE}:/work" \
+              --workdir /work \
+              "skiasharp-ppc64le:${GITHUB_RUN_ID}" \
+              /bin/bash -c "
+                dotnet tool restore &&
+                dotnet cake \
+                  --target=externals-linux-clang-cross \
+                  --configuration=Release \
+                  --buildarch=ppc64le \
+                  --verifyGlibcMax=${GLIBC_MAX_VERSION}
+              "
+          elif [[ "${SKIASHARP_MAJOR}" == "3" ]]; then
+            docker run --rm \
+              --name skiasharp-ppc64le-${GITHUB_RUN_ID} \
+              --volume "${GITHUB_WORKSPACE}:/work" \
+              --workdir /work \
+              "skiasharp-ppc64le:${GITHUB_RUN_ID}" \
+              /bin/bash -c "
+                dotnet tool restore &&
+                dotnet cake \
+                  --target=externals-linux-clang-cross \
+                  --configuration=Release \
+                  --buildarch=ppc64le \
+                  --verifyGlibcMax=${GLIBC_MAX_VERSION}
+              "
+          fi
 
       - name: Fix workspace ownership
         if: always()
@@ -399,4 +466,4 @@ jobs:
           echo "Release tag:     ${RELEASE_TAG}"
           echo
           gh release view "${RELEASE_TAG}" \
-            --repo "${GITHUB_REPOSITORY}" \
+            --repo "${GITHUB_REPOSITORY}"
