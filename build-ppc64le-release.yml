@@ -1,0 +1,396 @@
+name: Build SkiaSharp ppc64le Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SkiaSharp source tag, e.g. v3.119.4"
+        required: true
+        type: string
+        default: "v3.119.4"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ppc64le-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  PATCH_REPO: autorepobot/SkiaSharp-ppc64le
+  PATCH_REF: main
+  GLIBC_MAX_VERSION: "2.27"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate version input
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ inputs.version }}"
+
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version/tag: $VERSION"
+            echo "Expected something like: v3.119.4"
+            exit 1
+          fi
+
+          echo "SOURCE_TAG=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Checkout SkiaSharp source tag
+        uses: actions/checkout@v4
+        with:
+          repository: mono/SkiaSharp
+          ref: ${{ inputs.version }}
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Show source and submodule revisions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=== SkiaSharp ==="
+          git rev-parse HEAD
+          git describe --tags --always || true
+
+          echo
+          echo "=== Submodules ==="
+          git submodule status --recursive
+
+          echo
+          echo "=== externals/skia ==="
+          git -C externals/skia rev-parse HEAD
+          git -C externals/skia describe --always || true
+
+      - name: Download ppc64le patches
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl -fsSL \
+            "https://raw.githubusercontent.com/${PATCH_REPO}/${PATCH_REF}/SkiaSharp.diff" \
+            -o SkiaSharp.diff
+
+          curl -fsSL \
+            "https://raw.githubusercontent.com/${PATCH_REPO}/${PATCH_REF}/skia.diff" \
+            -o skia.diff
+
+          echo "=== Patch files ==="
+          ls -lh SkiaSharp.diff skia.diff
+
+      - name: Apply SkiaSharp main-repository patch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Checking SkiaSharp.diff..."
+          git apply --check SkiaSharp.diff
+
+          echo "Applying SkiaSharp.diff..."
+          git apply --verbose SkiaSharp.diff
+
+      - name: Apply Skia submodule patch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -d externals/skia
+          test -f externals/skia/third_party/libpng/BUILD.gn
+
+          echo "Checking skia.diff inside externals/skia..."
+          git -C externals/skia apply --check "$GITHUB_WORKSPACE/skia.diff"
+
+          echo "Applying skia.diff inside externals/skia..."
+          git -C externals/skia apply --verbose "$GITHUB_WORKSPACE/skia.diff"
+
+      - name: Verify ppc64le patch result
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=== Main repository changes ==="
+          git status --short
+
+          echo
+          echo "=== Check ppc64le files ==="
+          test -f scripts/infra/native/linux/docker/glibc-ppc64le/Dockerfile
+          test -f scripts/infra/native/linux/docker/glibc-ppc64le/startup.sh
+
+          echo
+          echo "=== Check Linux native packaging changes ==="
+          grep -n "linux-ppc64le" \
+            binding/SkiaSharp.NativeAssets.Linux/SkiaSharp.NativeAssets.Linux.csproj
+
+          grep -n "linux-ppc64le" \
+            binding/HarfBuzzSharp.NativeAssets.Linux/HarfBuzzSharp.NativeAssets.Linux.csproj
+
+          echo
+          echo "=== Check Skia libpng patch ==="
+          grep -n "current_cpu == \"ppc64\"" \
+            externals/skia/third_party/libpng/BUILD.gn
+
+          grep -n "filter_vsx_intrinsics.c" \
+            externals/skia/third_party/libpng/BUILD.gn
+
+      - name: Build glibc-ppc64le Docker image
+        working-directory: scripts/infra/native/linux/docker/glibc-ppc64le
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker build \
+            --tag skiasharp-ppc64le:${GITHUB_RUN_ID} \
+            .
+
+      - name: Build ppc64le native libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --name skiasharp-ppc64le-${GITHUB_RUN_ID} \
+            --volume "${GITHUB_WORKSPACE}:/work" \
+            --workdir /work \
+            "skiasharp-ppc64le:${GITHUB_RUN_ID}" \
+            /bin/bash -c "
+              dotnet tool restore &&
+              dotnet cake \
+                --target=externals-linux-clang-cross \
+                --configuration=Release \
+                --buildarch=ppc64le \
+                --verifyGlibcMax=${GLIBC_MAX_VERSION}
+            "
+
+      - name: Fix workspace ownership
+        if: always()
+        shell: bash
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" .
+
+      - name: Verify native libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          OUTPUT_DIR="output/native/linux/ppc64le"
+
+          for LIB in libSkiaSharp libHarfBuzzSharp; do
+            SO="${OUTPUT_DIR}/${LIB}.so"
+
+            if [[ ! -f "$SO" ]]; then
+              echo "ERROR: missing $SO"
+              echo
+              echo "Produced files:"
+              find output/native/linux -maxdepth 2 -type f -print 2>/dev/null || true
+              exit 1
+            fi
+
+            echo
+            echo "=== $SO ==="
+            file "$SO"
+            readelf -h "$SO" | sed -n '1,25p'
+          done
+
+      - name: Check ELF architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for SO in \
+            output/native/linux/ppc64le/libSkiaSharp.so \
+            output/native/linux/ppc64le/libHarfBuzzSharp.so
+          do
+            echo "=== $SO ==="
+            file "$SO"
+
+            if ! file "$SO" | grep -Eq 'PowerPC|powerpc64|ppc64'; then
+              echo "ERROR: $SO does not look like a ppc64le ELF binary"
+              exit 1
+            fi
+          done
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Derive package and release versions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SOURCE_VERSION="${SOURCE_TAG#v}"
+
+          # NuGet prerelease version.
+          PACKAGE_VERSION="${SOURCE_VERSION}-ppc64le"
+
+          # Separate release tag so we never collide with the official source tag.
+          RELEASE_TAG="ppc64le-${SOURCE_TAG}-${GITHUB_RUN_ID}"
+
+          echo "SOURCE_VERSION=$SOURCE_VERSION" >> "$GITHUB_ENV"
+          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+
+          echo "Source tag:      $SOURCE_TAG"
+          echo "Package version: $PACKAGE_VERSION"
+          echo "Release tag:     $RELEASE_TAG"
+
+      - name: Restore NuGet projects
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dotnet restore \
+            binding/SkiaSharp.NativeAssets.Linux/SkiaSharp.NativeAssets.Linux.csproj
+
+          dotnet restore \
+            binding/HarfBuzzSharp.NativeAssets.Linux/HarfBuzzSharp.NativeAssets.Linux.csproj
+
+      - name: Pack SkiaSharp NativeAssets.Linux
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p output/ppc64le-release
+
+          dotnet pack \
+            binding/SkiaSharp.NativeAssets.Linux/SkiaSharp.NativeAssets.Linux.csproj \
+            --configuration Release \
+            --no-restore \
+            --output output/ppc64le-release \
+            -p:Version="${PACKAGE_VERSION}" \
+            -p:PackageVersion="${PACKAGE_VERSION}"
+
+      - name: Pack HarfBuzzSharp NativeAssets.Linux
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dotnet pack \
+            binding/HarfBuzzSharp.NativeAssets.Linux/HarfBuzzSharp.NativeAssets.Linux.csproj \
+            --configuration Release \
+            --no-restore \
+            --output output/ppc64le-release \
+            -p:Version="${PACKAGE_VERSION}" \
+            -p:PackageVersion="${PACKAGE_VERSION}"
+
+      - name: Verify generated packages contain ppc64le only
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd output/ppc64le-release
+
+          shopt -s nullglob
+          PACKAGES=( *.nupkg )
+
+          if [[ ${#PACKAGES[@]} -ne 2 ]]; then
+            echo "Expected exactly 2 nupkg files, found ${#PACKAGES[@]}"
+            printf '%s\n' "${PACKAGES[@]}"
+            exit 1
+          fi
+
+          for PKG in "${PACKAGES[@]}"; do
+            echo
+            echo "========================================"
+            echo "$PKG"
+            echo "========================================"
+
+            unzip -l "$PKG"
+
+            echo
+            echo "--- Runtime entries ---"
+            unzip -l "$PKG" | grep 'runtimes/' || true
+
+            echo
+            echo "--- ppc64le check ---"
+            if ! unzip -l "$PKG" | grep -q 'runtimes/linux-ppc64le/native/'; then
+              echo "ERROR: $PKG does not contain linux-ppc64le/native/"
+              exit 1
+            fi
+
+            echo
+            echo "--- unexpected Linux glibc RIDs ---"
+            if unzip -l "$PKG" | grep -E \
+              'runtimes/linux-(x64|x86|arm|arm64|riscv64|loongarch64)/native/' \
+              ; then
+              echo "ERROR: package unexpectedly contains another glibc RID"
+              exit 1
+            fi
+
+            echo
+            echo "--- unexpected musl RIDs ---"
+            if unzip -l "$PKG" | grep -E 'runtimes/linux-musl-' ; then
+              echo "ERROR: package unexpectedly contains musl assets"
+              exit 1
+            fi
+
+            echo
+            echo "--- unexpected bionic RIDs ---"
+            if unzip -l "$PKG" | grep -E 'runtimes/linux-bionic-' ; then
+              echo "ERROR: package unexpectedly contains bionic assets"
+              exit 1
+            fi
+          done
+
+      - name: Generate SHA256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd output/ppc64le-release
+
+          sha256sum *.nupkg > SHA256SUMS.txt
+
+          echo "=== SHA256SUMS.txt ==="
+          cat SHA256SUMS.txt
+
+      - name: Upload packages as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: skiasharp-ppc64le-${{ env.SOURCE_VERSION }}
+          path: |
+            output/ppc64le-release/*.nupkg
+            output/ppc64le-release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh release create "${RELEASE_TAG}" \
+            output/ppc64le-release/*.nupkg \
+            output/ppc64le-release/SHA256SUMS.txt \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "SkiaSharp ${SOURCE_TAG} - ppc64le" \
+            --prerelease \
+            --generate-notes
+
+      - name: Print release information
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo
+          echo "========================================"
+          echo "ppc64le Release"
+          echo "========================================"
+          echo "Source tag:      ${SOURCE_TAG}"
+          echo "Package version: ${PACKAGE_VERSION}"
+          echo "Release tag:     ${RELEASE_TAG}"
+          echo
+          gh release view "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --web
