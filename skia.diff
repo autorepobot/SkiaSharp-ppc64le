@@ -1,0 +1,18 @@
+diff --git a/third_party/libpng/BUILD.gn b/third_party/libpng/BUILD.gn
+index 76694dca8566..919ddcede13c 100644
+--- a/third_party/libpng/BUILD.gn
++++ b/third_party/libpng/BUILD.gn
+@@ -64,5 +64,13 @@ if (skia_use_system_libpng) {
+         "../externals/libpng/loongarch/loongarch_lsx_init.c",
+       ]
+     }
++
++
++    if (current_cpu == "ppc64" || current_cpu == "ppc64le") {  
++      sources += [  
++        "../externals/libpng/powerpc/powerpc_init.c",  
++        "../externals/libpng/powerpc/filter_vsx_intrinsics.c",  
++      ]  
++    }
+   }
+ }
