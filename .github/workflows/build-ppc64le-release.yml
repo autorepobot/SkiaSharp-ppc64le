@@ -72,8 +72,22 @@ jobs:
         run: |
           set -euo pipefail
 
+          VERSION="${SOURCE_TAG}"
+
+          if [[ "$VERSION" =~ ^v4\. ]]; then
+            SKIASHARP_PATCH="SkiaSharp-v4.diff"
+          elif [[ "$VERSION" =~ ^v3\. ]]; then
+            SKIASHARP_PATCH="SkiaSharp-v3.diff"
+          else
+            echo "Unsupported SkiaSharp major version: $VERSION"
+            echo "Supported versions: v3.x.x and v4.x.x"
+            exit 1
+          fi
+
+          echo "Using SkiaSharp patch: ${SKIASHARP_PATCH}"
+
           curl -fsSL \
-            "https://raw.githubusercontent.com/${PATCH_REPO}/${PATCH_REF}/SkiaSharp.diff" \
+            "https://raw.githubusercontent.com/${PATCH_REPO}/${PATCH_REF}/${SKIASHARP_PATCH}" \
             -o SkiaSharp.diff
 
           curl -fsSL \
