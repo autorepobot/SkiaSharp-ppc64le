@@ -82,8 +82,8 @@ jobs:
               {"arch": "x64", "docker_dir": "scripts/infra/native/linux/docker/bionic", "variant": "bionic", "gn_args": "", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-bionic", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/bionic/x64"}
             ]
           }
-EOF
-)
+          EOF
+          )
           elif [[ "$VERSION" =~ ^v3\. ]]; then
             MAJOR="3"
             # v3 完整矩阵生成
@@ -121,8 +121,8 @@ EOF
               {"arch": "x64", "docker_dir": "scripts/Docker/bionic", "variant": "bionic", "gn_args": "", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-bionic", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/bionic/x64"}
             ]
           }
-EOF
-)
+          EOF
+          )
           else
             echo "Unsupported SkiaSharp major version: $VERSION"
             exit 1
