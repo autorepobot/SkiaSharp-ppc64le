@@ -472,6 +472,7 @@ jobs:
 
             cat > cmd.sh <<EOF
           set -euo pipefail
+          dotnet tool restore
           dotnet cake --target=externals-linux-clang-cross --verbosity=normal --configuration=Release \\
             --buildarch=${ARCH} --variant=${VARIANT} --gnArgs="${GN_ARGS} " ${EXTRA_ARGS}
           EOF
