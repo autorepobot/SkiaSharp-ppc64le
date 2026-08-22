@@ -258,8 +258,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          dotnet tool restore
-
           # $1 ARCH  $2 DOCKER_DIR  $3 VARIANT  $4 GN_ARGS  $5 EXTRA_ARGS
           # $6 IMAGE_TAG  $7 NO_BUILD_ARCH_ARG (set to "1" for self-contained
           #    Dockerfiles that don't accept --build-arg BUILD_ARCH, i.e. x86/ppc64le)
@@ -290,6 +288,7 @@ jobs:
 
             cat > cmd.sh <<EOF
           set -euo pipefail
+          dotnet tool restore
           dotnet cake --target=externals-linux-clang-cross --verbosity=normal --configuration=Release \\
             --buildarch=${ARCH} --variant=${VARIANT} --gnArgs="${GN_ARGS} " ${EXTRA_ARGS}
           EOF
@@ -595,4 +594,8 @@ jobs:
             echo "=== $SO ==="
             file "$SO"
 
-            if ! file "$SO" | grep -Eq 'PowerPC|pow
+            if ! file "$SO" | grep -Eq 'PowerPC|powerpc64|ppc64'; then
+              echo "ERROR: $SO does not look like a ppc64le ELF binary"
+              exit 1
+            fi
+          done
