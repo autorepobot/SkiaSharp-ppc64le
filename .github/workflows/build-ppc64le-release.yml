@@ -19,7 +19,7 @@ concurrency:
 env:
   PATCH_REPO: autorepobot/SkiaSharp-ppc64le
   PATCH_REF: main
-  GLIBC_MAX_VERSION: "2.38"
+  GLIBC_MAX_VERSION: "2.38"   # only used by the [v3] branch (debian/13 image)
 
 jobs:
   build:
@@ -110,10 +110,6 @@ jobs:
           echo "=== Patch files (common) ==="
           ls -lh SkiaSharp.diff skia.diff
 
-          # v3 uses the older Skia source layout, where the musttail macro is
-          # named JUMPER_MUSTTAIL instead of SKRP_MUSTTAIL (v4). skia.diff
-          # already covers the v4 case; skia-v3.diff carries the v3-specific
-          # musttail fix and is layered on top of skia.diff only for v3 builds.
           if [[ "${SKIASHARP_MAJOR}" == "3" ]]; then
             curl -fsSL \
               "https://raw.githubusercontent.com/${PATCH_REPO}/${PATCH_REF}/skia-v3.diff" \
@@ -172,12 +168,26 @@ jobs:
           echo "SkiaSharp patch: ${SKIASHARP_PATCH}"
 
           echo
-          echo "=== Check Linux native packaging changes ==="
+          echo "=== Check Linux native packaging changes (csproj) ==="
           grep -n "linux-ppc64le" \
             binding/SkiaSharp.NativeAssets.Linux/SkiaSharp.NativeAssets.Linux.csproj
 
           grep -n "linux-ppc64le" \
+            binding/SkiaSharp.NativeAssets.Linux.NoDependencies/SkiaSharp.NativeAssets.Linux.NoDependencies.csproj
+
+          grep -n "linux-ppc64le" \
             binding/HarfBuzzSharp.NativeAssets.Linux/HarfBuzzSharp.NativeAssets.Linux.csproj
+
+          echo
+          echo "=== Check Linux native packaging changes (buildTransitive targets) ==="
+          grep -n "linux-ppc64le" \
+            binding/SkiaSharp.NativeAssets.Linux/buildTransitive/net4/SkiaSharp.targets
+
+          grep -n "linux-ppc64le" \
+            binding/SkiaSharp.NativeAssets.Linux.NoDependencies/buildTransitive/net4/SkiaSharp.targets
+
+          grep -n "linux-ppc64le" \
+            binding/HarfBuzzSharp.NativeAssets.Linux/buildTransitive/net4/HarfBuzzSharp.targets
 
           echo
           echo "=== Check Skia libpng patch ==="
@@ -193,11 +203,12 @@ jobs:
             test -f scripts/infra/native/linux/docker/glibc-ppc64le/Dockerfile
             test -f scripts/infra/native/linux/docker/glibc-ppc64le/startup.sh
 
-            # v4 不需要检查 musttail patch，此处已被移除
+            grep -n "arch: ppc64le" \
+              scripts/azure-templates-stages-native-linux.yml
 
           elif [[ "${SKIASHARP_MAJOR}" == "3" ]]; then
             echo
-            echo "=== Check v3 ppc64le build files ==="
+            echo "=== Check v3 ppc64le build files (reuses debian/13 image) ==="
             test -f scripts/Docker/debian/13/Dockerfile
             test -f scripts/Docker/debian/13/build-local.sh
 
@@ -207,12 +218,19 @@ jobs:
             grep -n "ppc64le" scripts/Docker/debian/13/build-local.sh
 
             echo
-            echo "=== Check v3 ppc64le native build template ==="
-            grep -n "arch: ppc64le" \
+            echo "=== Check v3 ppc64le 已经并入官方 native-linux 矩阵 ==="
+            grep -n -B2 "arch: ppc64le" \
               scripts/azure-templates-stages-native-linux.yml
 
-            grep -n "native_linux_ppc64le_linux" \
+            echo
+            echo "=== Check v3 ppc64le 已经并入官方 native-merge requiredArtifacts ==="
+            grep -n "native_linux_ppc64le" \
               scripts/azure-templates-stages-native-merge.yml
+
+            echo
+            echo "=== Check v3 cake ReduceArch ppc64le 分支 ==="
+            grep -n -A1 'case "ppc64le"' \
+              scripts/cake/native-shared.cake
 
             echo
             echo "=== Check v3 musttail (JUMPER_MUSTTAIL / SKRP_MUSTTAIL) patch ==="
@@ -222,102 +240,186 @@ jobs:
               externals/skia/src/opts/SkRasterPipeline_opts.h
           fi
 
-      - name: Build glibc-ppc64le Docker image
+      # ===========================================================================
+      # [v4 分支] 改为：走"官方完整 Linux 矩阵 + ppc64le"路径
+      #
+      # 依据 scripts/azure-templates-stages-native-linux.yml 官方矩阵定义：
+      #   glibc: arm64, x86, arm, x64, riscv64, loongarch64（各自不同 verifyGlibcMax）
+      #   glibc: ppc64le（补丁新增，专用 glibc-ppc64le 镶像，因为 .NET 官方不提供
+      #          ppc64le 的 libc++，需要在镜像里自行构建，和 x86 同构，verifyGlibcMax=2.27）
+      #   musl:  alpine → arm, arm64, x64, riscv64, loongarch64（官方矩阵没有 musl-x86）
+      #   bionic: bionic → arm64, x64（只有默认 variant，没有 nodeps）
+      # 每个 glibc/musl 架构都跑 default(--verifyIncluded=fontconfig) 和
+      # nodeps(--verifyExcluded=fontconfig --gnArgs=skia_use_fontconfig=false) 两次。
+      # ===========================================================================
+      - name: "[v4] Build full official Linux matrix + ppc64le"
         if: env.SKIASHARP_MAJOR == '4'
-        working-directory: scripts/infra/native/linux/docker/glibc-ppc64le
         shell: bash
         run: |
           set -euo pipefail
 
-          docker build \
-            --tag skiasharp-ppc64le:${GITHUB_RUN_ID} \
-            .
+          dotnet tool restore
 
-      - name: Build debian-13 ppc64le Docker image
-        if: env.SKIASHARP_MAJOR == '3'
-        working-directory: scripts/Docker/debian/13
-        shell: bash
-        run: |
+          # $1 ARCH  $2 DOCKER_DIR  $3 VARIANT  $4 GN_ARGS  $5 EXTRA_ARGS
+          # $6 IMAGE_TAG  $7 NO_BUILD_ARCH_ARG (set to "1" for self-contained
+          #    Dockerfiles that don't accept --build-arg BUILD_ARCH, i.e. x86/ppc64le)
+          build_one () {
+            local ARCH="$1" DOCKER_DIR="$2" VARIANT="$3" GN_ARGS="$4" EXTRA_ARGS="$5" IMAGE_TAG="$6" NO_ARCH_ARG="${7:-}"
+
+            echo
+            echo "=========================================================="
+            echo "[docker build] dir=${DOCKER_DIR} arch=${ARCH} image=${IMAGE_TAG}"
+            echo "=========================================================="
+            if [[ "${NO_ARCH_ARG}" == "1" ]]; then
+              docker build \
+                --platform linux/amd64 \
+                --tag "${IMAGE_TAG}" \
+                "${DOCKER_DIR}"
+            else
+              docker build \
+                --platform linux/amd64 \
+                --tag "${IMAGE_TAG}" \
+                --build-arg BUILD_ARCH="${ARCH}" \
+                "${DOCKER_DIR}"
+            fi
+
+            echo
+            echo "=========================================================="
+            echo "[cake] arch=${ARCH} variant=${VARIANT} gnArgs='${GN_ARGS}' extra='${EXTRA_ARGS}'"
+            echo "=========================================================="
+
+            cat > cmd.sh <<EOF
           set -euo pipefail
+          dotnet cake --target=externals-linux-clang-cross --verbosity=normal --configuration=Release \\
+            --buildarch=${ARCH} --variant=${VARIANT} --gnArgs="${GN_ARGS} " ${EXTRA_ARGS}
+          EOF
+            cat cmd.sh
 
-          docker build \
-            --build-arg BUILD_ARCH=ppc64le \
-            --tag skiasharp-ppc64le:${GITHUB_RUN_ID} \
-            .
-
-      - name: Build ppc64le native libraries
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ "${SKIASHARP_MAJOR}" == "4" ]]; then
             docker run --rm \
-              --name skiasharp-ppc64le-${GITHUB_RUN_ID} \
+              --name "skiasharp-${IMAGE_TAG}-${ARCH}-${VARIANT}-${GITHUB_RUN_ID}" \
               --volume "${GITHUB_WORKSPACE}:/work" \
               --workdir /work \
-              "skiasharp-ppc64le:${GITHUB_RUN_ID}" \
-              /bin/bash -c "
-                dotnet tool restore &&
-                dotnet cake \
-                  --target=externals-linux-clang-cross \
-                  --configuration=Release \
-                  --buildarch=ppc64le \
-                  --verifyGlibcMax=${GLIBC_MAX_VERSION}
-              "
-          elif [[ "${SKIASHARP_MAJOR}" == "3" ]]; then
-            docker run --rm \
-              --name skiasharp-ppc64le-${GITHUB_RUN_ID} \
-              --volume "${GITHUB_WORKSPACE}:/work" \
-              --workdir /work \
-              "skiasharp-ppc64le:${GITHUB_RUN_ID}" \
-              /bin/bash -c "
-                dotnet tool restore &&
-                dotnet cake \
-                  --target=externals-linux-clang-cross \
-                  --configuration=Release \
-                  --buildarch=ppc64le \
-                  --verifyGlibcMax=${GLIBC_MAX_VERSION}
-              "
-          fi
+              "${IMAGE_TAG}" \
+              /bin/bash /work/cmd.sh
+          }
 
-      - name: Fix workspace ownership
-        if: always()
+          # ---------------- glibc: official cross images (default + nodeps) ----------------
+          # arch  docker                                            verifyGlibcMax
+          declare -A GLIBC_ARCH_MAX=(
+            [arm64]=2.27
+            [arm]=2.35
+            [x64]=2.27
+            [riscv64]=2.39
+            [loongarch64]=2.42
+          )
+          for ARCH in arm64 arm x64 riscv64 loongarch64; do
+            MAXV="${GLIBC_ARCH_MAX[$ARCH]}"
+            build_one "${ARCH}" "scripts/infra/native/linux/docker/glibc" "linux" "" \
+              "--verifyIncluded=fontconfig --verifyGlibcMax=${MAXV}" "skiasharp-glibc"
+            build_one "${ARCH}" "scripts/infra/native/linux/docker/glibc" "linuxnodeps" "skia_use_fontconfig=false" \
+              "--verifyExcluded=fontconfig --verifyGlibcMax=${MAXV}" "skiasharp-glibc"
+          done
+
+          # ---------------- glibc: x86 (self-contained Dockerfile, no BUILD_ARCH) ----------------
+          build_one "x86" "scripts/infra/native/linux/docker/glibc-x86" "linux" "" \
+            "--verifyIncluded=fontconfig --verifyGlibcMax=2.27" "skiasharp-glibc-x86" "1"
+          build_one "x86" "scripts/infra/native/linux/docker/glibc-x86" "linuxnodeps" "skia_use_fontconfig=false" \
+            "--verifyExcluded=fontconfig --verifyGlibcMax=2.27" "skiasharp-glibc-x86" "1"
+
+          # ---------------- glibc: ppc64le (self-contained Dockerfile, no BUILD_ARCH) ----------------
+          build_one "ppc64le" "scripts/infra/native/linux/docker/glibc-ppc64le" "linux" "" \
+            "--verifyIncluded=fontconfig --verifyGlibcMax=2.27" "skiasharp-glibc-ppc64le" "1"
+          build_one "ppc64le" "scripts/infra/native/linux/docker/glibc-ppc64le" "linuxnodeps" "skia_use_fontconfig=false" \
+            "--verifyExcluded=fontconfig --verifyGlibcMax=2.27" "skiasharp-glibc-ppc64le" "1"
+
+          # ---------------- musl: alpine (default + nodeps) — official matrix has no x86 ----------------
+          for ARCH in arm arm64 x64 riscv64 loongarch64; do
+            build_one "${ARCH}" "scripts/infra/native/linux/docker/alpine" "alpine" "" \
+              "--verifyIncluded=fontconfig" "skiasharp-alpine"
+            build_one "${ARCH}" "scripts/infra/native/linux/docker/alpine" "alpinenodeps" "skia_use_fontconfig=false" \
+              "--verifyExcluded=fontconfig" "skiasharp-alpine"
+          done
+
+          # ---------------- bionic (只有默认 variant，没有 nodeps) ----------------
+          for ARCH in arm64 x64; do
+            build_one "${ARCH}" "scripts/infra/native/linux/docker/bionic" "bionic" "" \
+              "--verifyExcluded=fontconfig" "skiasharp-bionic"
+          done
+
+      - name: "[v4] Fix workspace ownership"
+        if: always() && env.SKIASHARP_MAJOR == '4'
         shell: bash
         run: |
           sudo chown -R "$(id -u):$(id -g)" .
 
-      - name: Verify native libraries
+      - name: "[v4] Verify native libraries (official matrix + ppc64le)"
+        if: env.SKIASHARP_MAJOR == '4'
         shell: bash
         run: |
           set -euo pipefail
 
-          OUTPUT_DIR="output/native/linux/ppc64le"
+          declare -A DIR_TO_LIBS=(
+            ["output/native/linux/arm"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/arm64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/x86"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/x64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/riscv64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/loongarch64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/ppc64le"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linuxnodeps/arm"]="libSkiaSharp"
+            ["output/native/linuxnodeps/arm64"]="libSkiaSharp"
+            ["output/native/linuxnodeps/x86"]="libSkiaSharp"
+            ["output/native/linuxnodeps/x64"]="libSkiaSharp"
+            ["output/native/linuxnodeps/riscv64"]="libSkiaSharp"
+            ["output/native/linuxnodeps/loongarch64"]="libSkiaSharp"
+            ["output/native/linuxnodeps/ppc64le"]="libSkiaSharp"
+            ["output/native/alpine/arm"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/alpine/arm64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/alpine/x64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/alpine/riscv64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/alpine/loongarch64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/alpinenodeps/arm"]="libSkiaSharp"
+            ["output/native/alpinenodeps/arm64"]="libSkiaSharp"
+            ["output/native/alpinenodeps/x64"]="libSkiaSharp"
+            ["output/native/alpinenodeps/riscv64"]="libSkiaSharp"
+            ["output/native/alpinenodeps/loongarch64"]="libSkiaSharp"
+            ["output/native/bionic/arm64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/bionic/x64"]="libSkiaSharp libHarfBuzzSharp"
+          )
 
-          for LIB in libSkiaSharp libHarfBuzzSharp; do
-            SO="${OUTPUT_DIR}/${LIB}.so"
+          MISSING=0
+          for OUTPUT_DIR in "${!DIR_TO_LIBS[@]}"; do
+            for LIB in ${DIR_TO_LIBS[$OUTPUT_DIR]}; do
+              SO="${OUTPUT_DIR}/${LIB}.so"
 
-            if [[ ! -f "$SO" ]]; then
-              echo "ERROR: missing $SO"
-              echo
-              echo "Produced files:"
-              find output/native/linux -maxdepth 2 -type f -print 2>/dev/null || true
-              exit 1
-            fi
+              if [[ ! -f "$SO" ]]; then
+                echo "ERROR: missing $SO"
+                MISSING=1
+                continue
+              fi
 
-            echo
-            echo "=== $SO ==="
-            file "$SO"
-            readelf -h "$SO" | sed -n '1,25p'
+              echo "=== $SO ==="
+              file "$SO"
+            done
           done
 
-      - name: Check ELF architecture
+          if [[ "${MISSING}" -ne 0 ]]; then
+            echo
+            echo "Produced files:"
+            find output/native -maxdepth 3 -type f -print 2>/dev/null || true
+            exit 1
+          fi
+
+      - name: "[v4] Check ppc64le ELF architecture"
+        if: env.SKIASHARP_MAJOR == '4'
         shell: bash
         run: |
           set -euo pipefail
 
           for SO in \
             output/native/linux/ppc64le/libSkiaSharp.so \
-            output/native/linux/ppc64le/libHarfBuzzSharp.so
+            output/native/linux/ppc64le/libHarfBuzzSharp.so \
+            output/native/linuxnodeps/ppc64le/libSkiaSharp.so
           do
             echo "=== $SO ==="
             file "$SO"
@@ -328,175 +430,169 @@ jobs:
             fi
           done
 
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-
-      - name: Derive package and release versions
+      # ===========================================================================
+      # [v3 分支] 保持不变：走"官方完整 Linux 矩阵 + ppc64le"路径
+      #
+      # 依据补丁内容，v3 的 ppc64le 已经被直接插入官方
+      # scripts/azure-templates-stages-native-linux.yml 的矩阵里（复用 debian/13
+      # 镜像，和 loongarch64 平级），因此这里按官方矩阵原样构建所有官方架构 + ppc64le：
+      #   glibc:  debian/10  → arm, arm64, x86, x64, riscv64
+      #   glibc:  debian/13  → loongarch64, ppc64le（均带 --verifyGlibcMax=2.38）
+      #   musl:   alpine     → arm, arm64, x64, riscv64, loongarch64
+      #   bionic: bionic     → arm64, x64（只有默认 variant，没有 nodeps）
+      # 每个 glibc/musl 架构都跑 default(--verifyIncluded=fontconfig) 和
+      # nodeps(--verifyExcluded=fontconfig --gnArgs=skia_use_fontconfig=false) 两次。
+      # 不加任何签名/SDL 步骤 —— 签名只存在于官方独立的打包发布流水线
+      # (azure-pipelines-package.yml + MicroBuild.1ES.Official.yml)，不属于原生构建阶段。
+      # ===========================================================================
+      - name: "[v3] Build full official Linux matrix + ppc64le"
+        if: env.SKIASHARP_MAJOR == '3'
         shell: bash
         run: |
           set -euo pipefail
 
-          SOURCE_VERSION="${SOURCE_TAG#v}"
+          dotnet tool restore
 
-          # NuGet prerelease version.
-          PACKAGE_VERSION="${SOURCE_VERSION}"
+          build_one () {
+            local ARCH="$1" DOCKER_DIR="$2" VARIANT="$3" GN_ARGS="$4" EXTRA_ARGS="$5" IMAGE_TAG="$6"
 
-          # Release tag is exactly the source tag.
-          RELEASE_TAG="${SOURCE_TAG}"
+            echo
+            echo "=========================================================="
+            echo "[docker build] dir=${DOCKER_DIR} arch=${ARCH} image=${IMAGE_TAG}"
+            echo "=========================================================="
+            docker build \
+              --platform linux/amd64 \
+              --tag "${IMAGE_TAG}" \
+              --build-arg BUILD_ARCH="${ARCH}" \
+              "${DOCKER_DIR}"
 
-          echo "SOURCE_VERSION=$SOURCE_VERSION" >> "$GITHUB_ENV"
-          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+            echo
+            echo "=========================================================="
+            echo "[cake] arch=${ARCH} variant=${VARIANT} gnArgs='${GN_ARGS}' extra='${EXTRA_ARGS}'"
+            echo "=========================================================="
 
-          echo "Source tag:      $SOURCE_TAG"
-          echo "Package version: $PACKAGE_VERSION"
-          echo "Release tag:     $RELEASE_TAG"
+            cat > cmd.sh <<EOF
+          set -euo pipefail
+          dotnet cake --target=externals-linux-clang-cross --verbosity=normal --configuration=Release \\
+            --buildarch=${ARCH} --variant=${VARIANT} --gnArgs="${GN_ARGS} " ${EXTRA_ARGS}
+          EOF
+            cat cmd.sh
 
-      - name: Restore NuGet projects
+            docker run --rm \
+              --name "skiasharp-${IMAGE_TAG}-${ARCH}-${VARIANT}-${GITHUB_RUN_ID}" \
+              --volume "${GITHUB_WORKSPACE}:/work" \
+              --workdir /work \
+              --env GLIBC_MAX_VERSION="${GLIBC_MAX_VERSION}" \
+              "${IMAGE_TAG}" \
+              /bin/bash /work/cmd.sh
+          }
+
+          # ---------------- glibc: debian/10 (default + nodeps) ----------------
+          for ARCH in arm arm64 x86 x64 riscv64; do
+            build_one "${ARCH}" "scripts/Docker/debian/10" "linux" "" \
+              "--verifyIncluded=fontconfig" "skiasharp-debian10"
+            build_one "${ARCH}" "scripts/Docker/debian/10" "linuxnodeps" "skia_use_fontconfig=false" \
+              "--verifyExcluded=fontconfig" "skiasharp-debian10"
+          done
+
+          # ---------------- glibc: debian/13 (loongarch64 + ppc64le, 均带 verifyGlibcMax) ----------------
+          for ARCH in loongarch64 ppc64le; do
+            build_one "${ARCH}" "scripts/Docker/debian/13" "linux" "" \
+              "--verifyIncluded=fontconfig --verifyGlibcMax=${GLIBC_MAX_VERSION}" "skiasharp-debian13"
+            build_one "${ARCH}" "scripts/Docker/debian/13" "linuxnodeps" "skia_use_fontconfig=false" \
+              "--verifyExcluded=fontconfig --verifyGlibcMax=${GLIBC_MAX_VERSION}" "skiasharp-debian13"
+          done
+
+          # ---------------- musl: alpine (default + nodeps) ----------------
+          for ARCH in arm arm64 x64 riscv64 loongarch64; do
+            build_one "${ARCH}" "scripts/Docker/alpine" "alpine" "" \
+              "--verifyIncluded=fontconfig" "skiasharp-alpine"
+            build_one "${ARCH}" "scripts/Docker/alpine" "alpinenodeps" "skia_use_fontconfig=false" \
+              "--verifyExcluded=fontconfig" "skiasharp-alpine"
+          done
+
+          # ---------------- bionic (只有默认 variant，没有 nodeps) ----------------
+          for ARCH in arm64 x64; do
+            build_one "${ARCH}" "scripts/Docker/bionic" "bionic" "" \
+              "--verifyExcluded=fontconfig" "skiasharp-bionic"
+          done
+
+      - name: "[v3] Fix workspace ownership"
+        if: always() && env.SKIASHARP_MAJOR == '3'
+        shell: bash
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" .
+
+      - name: "[v3] Verify native libraries (official matrix + ppc64le)"
+        if: env.SKIASHARP_MAJOR == '3'
         shell: bash
         run: |
           set -euo pipefail
 
-          dotnet restore \
-            binding/SkiaSharp.NativeAssets.Linux/SkiaSharp.NativeAssets.Linux.csproj
+          declare -A DIR_TO_LIBS=(
+            ["output/native/linux/arm"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/arm64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/x86"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/x64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/riscv64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/loongarch64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linux/ppc64le"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/linuxnodeps/arm"]="libSkiaSharp"
+            ["output/native/linuxnodeps/arm64"]="libSkiaSharp"
+            ["output/native/linuxnodeps/x86"]="libSkiaSharp"
+            ["output/native/linuxnodeps/x64"]="libSkiaSharp"
+            ["output/native/linuxnodeps/riscv64"]="libSkiaSharp"
+            ["output/native/linuxnodeps/loongarch64"]="libSkiaSharp"
+            ["output/native/linuxnodeps/ppc64le"]="libSkiaSharp"
+            ["output/native/alpine/arm"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/alpine/arm64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/alpine/x64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/alpine/riscv64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/alpine/loongarch64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/alpinenodeps/arm"]="libSkiaSharp"
+            ["output/native/alpinenodeps/arm64"]="libSkiaSharp"
+            ["output/native/alpinenodeps/x64"]="libSkiaSharp"
+            ["output/native/alpinenodeps/riscv64"]="libSkiaSharp"
+            ["output/native/alpinenodeps/loongarch64"]="libSkiaSharp"
+            ["output/native/bionic/arm64"]="libSkiaSharp libHarfBuzzSharp"
+            ["output/native/bionic/x64"]="libSkiaSharp libHarfBuzzSharp"
+          )
 
-          dotnet restore \
-            binding/HarfBuzzSharp.NativeAssets.Linux/HarfBuzzSharp.NativeAssets.Linux.csproj
+          MISSING=0
+          for OUTPUT_DIR in "${!DIR_TO_LIBS[@]}"; do
+            for LIB in ${DIR_TO_LIBS[$OUTPUT_DIR]}; do
+              SO="${OUTPUT_DIR}/${LIB}.so"
 
-      - name: Pack SkiaSharp NativeAssets.Linux
-        shell: bash
-        run: |
-          set -euo pipefail
+              if [[ ! -f "$SO" ]]; then
+                echo "ERROR: missing $SO"
+                MISSING=1
+                continue
+              fi
 
-          mkdir -p output/ppc64le-release
+              echo "=== $SO ==="
+              file "$SO"
+            done
+          done
 
-          dotnet pack \
-            binding/SkiaSharp.NativeAssets.Linux/SkiaSharp.NativeAssets.Linux.csproj \
-            --configuration Release \
-            --no-restore \
-            --output output/ppc64le-release \
-            -p:Version="${PACKAGE_VERSION}" \
-            -p:PackageVersion="${PACKAGE_VERSION}"
-
-      - name: Pack HarfBuzzSharp NativeAssets.Linux
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          dotnet pack \
-            binding/HarfBuzzSharp.NativeAssets.Linux/HarfBuzzSharp.NativeAssets.Linux.csproj \
-            --configuration Release \
-            --no-restore \
-            --output output/ppc64le-release \
-            -p:Version="${PACKAGE_VERSION}" \
-            -p:PackageVersion="${PACKAGE_VERSION}"
-
-      - name: Verify generated packages contain ppc64le only
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cd output/ppc64le-release
-
-          shopt -s nullglob
-          PACKAGES=( *.nupkg )
-
-          if [[ ${#PACKAGES[@]} -ne 2 ]]; then
-            echo "Expected exactly 2 nupkg files, found ${#PACKAGES[@]}"
-            printf '%s\n' "${PACKAGES[@]}"
+          if [[ "${MISSING}" -ne 0 ]]; then
+            echo
+            echo "Produced files:"
+            find output/native -maxdepth 3 -type f -print 2>/dev/null || true
             exit 1
           fi
 
-          for PKG in "${PACKAGES[@]}"; do
-            echo
-            echo "========================================"
-            echo "$PKG"
-            echo "========================================"
-
-            unzip -l "$PKG"
-
-            echo
-            echo "--- Runtime entries ---"
-            unzip -l "$PKG" | grep 'runtimes/' || true
-
-            echo
-            echo "--- ppc64le check ---"
-            if ! unzip -l "$PKG" | grep -q 'runtimes/linux-ppc64le/native/'; then
-              echo "ERROR: $PKG does not contain linux-ppc64le/native/"
-              exit 1
-            fi
-
-            echo
-            echo "--- unexpected Linux glibc RIDs ---"
-            if unzip -l "$PKG" | grep -E \
-              'runtimes/linux-(x64|x86|arm|arm64|riscv64|loongarch64)/native/' \
-              ; then
-              echo "ERROR: package unexpectedly contains another glibc RID"
-              exit 1
-            fi
-
-            echo
-            echo "--- unexpected bionic RIDs ---"
-            if unzip -l "$PKG" | grep -E 'runtimes/linux-bionic-' ; then
-              echo "ERROR: package unexpectedly contains bionic assets"
-              exit 1
-            fi
-          done
-
-      - name: Generate SHA256 checksums
+      - name: "[v3] Check ppc64le ELF architecture"
+        if: env.SKIASHARP_MAJOR == '3'
         shell: bash
         run: |
           set -euo pipefail
 
-          cd output/ppc64le-release
+          for SO in \
+            output/native/linux/ppc64le/libSkiaSharp.so \
+            output/native/linux/ppc64le/libHarfBuzzSharp.so \
+            output/native/linuxnodeps/ppc64le/libSkiaSharp.so
+          do
+            echo "=== $SO ==="
+            file "$SO"
 
-          sha256sum *.nupkg > SHA256SUMS.txt
-
-          echo "=== SHA256SUMS.txt ==="
-          cat SHA256SUMS.txt
-
-      - name: Upload packages as workflow artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: skiasharp-ppc64le-${{ env.SOURCE_VERSION }}
-          path: |
-            output/ppc64le-release/*.nupkg
-            output/ppc64le-release/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          gh release create "${RELEASE_TAG}" \
-            output/ppc64le-release/*.nupkg \
-            output/ppc64le-release/SHA256SUMS.txt \
-            --repo "${GITHUB_REPOSITORY}" \
-            --target "${GITHUB_SHA}" \
-            --title "SkiaSharp ${SOURCE_TAG} - ppc64le" \
-            --prerelease \
-            --generate-notes
-
-      - name: Print release information
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo
-          echo "========================================"
-          echo "ppc64le Release"
-          echo "========================================"
-          echo "Source tag:      ${SOURCE_TAG}"
-          echo "Package version: ${PACKAGE_VERSION}"
-          echo "Release tag:     ${RELEASE_TAG}"
-          echo
-          gh release view "${RELEASE_TAG}" \
-            --repo "${GITHUB_REPOSITORY}"
+            if ! file "$SO" | grep -Eq 'PowerPC|pow
