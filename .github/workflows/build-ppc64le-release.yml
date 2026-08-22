@@ -361,7 +361,7 @@ jobs:
           VERSION="${{ inputs.version }}"
           echo "SOURCE_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
           echo "PACKAGE_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG=ppc64le-${VERSION}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=${VERSION}" >> "$GITHUB_ENV"
 
       - name: "Pack NuGet packages"
         shell: bash
@@ -465,7 +465,6 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
             --title "SkiaSharp ${{ inputs.version }} - ppc64le" \
-            --prerelease \
             --generate-notes
 
       - name: Print release information
