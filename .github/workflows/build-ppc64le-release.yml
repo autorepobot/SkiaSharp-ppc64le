@@ -341,7 +341,7 @@ jobs:
           SOURCE_VERSION="${SOURCE_TAG#v}"
 
           # NuGet prerelease version.
-          PACKAGE_VERSION="${SOURCE_VERSION}-ppc64le"
+          PACKAGE_VERSION="${SOURCE_VERSION}"
 
           # Release tag is exactly the source tag.
           RELEASE_TAG="${SOURCE_TAG}"
