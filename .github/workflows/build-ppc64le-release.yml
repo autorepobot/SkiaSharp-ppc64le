@@ -78,8 +78,8 @@ jobs:
               {"arch": "loongarch64", "docker_dir": "scripts/infra/native/linux/docker/alpine", "variant": "alpine", "gn_args": "", "extra_args": "--verifyIncluded=fontconfig", "image_tag": "skiasharp-alpine", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/alpine/loongarch64"},
               {"arch": "loongarch64", "docker_dir": "scripts/infra/native/linux/docker/alpine", "variant": "alpinenodeps", "gn_args": "skia_use_fontconfig=false", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-alpine", "libs": "libSkiaSharp", "out_dir": "output/native/alpinenodeps/loongarch64"},
 
-              {"arch": "arm64", "docker_dir": "scripts/infra/native/linux/docker/bionic", "variant": "bionic", "gn_args": "", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-bionic", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/bionic/arm64"},
-              {"arch": "x64", "docker_dir": "scripts/infra/native/linux/docker/bionic", "variant": "bionic", "gn_args": "", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-bionic", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/bionic/x64"}
+              {"arch": "arm64", "docker_dir": "scripts/infra/native/linux/docker/bionic", "variant": "bionic", "gn_args": "", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-bionic", "target": "externals-linux", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/bionic/arm64"},
+              {"arch": "x64", "docker_dir": "scripts/infra/native/linux/docker/bionic", "variant": "bionic", "gn_args": "", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-bionic", "target": "externals-linux", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/bionic/x64"}
             ]
           }
           EOF
@@ -117,8 +117,8 @@ jobs:
               {"arch": "loongarch64", "docker_dir": "scripts/Docker/alpine", "variant": "alpine", "gn_args": "", "extra_args": "--verifyIncluded=fontconfig", "image_tag": "skiasharp-alpine", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/alpine/loongarch64"},
               {"arch": "loongarch64", "docker_dir": "scripts/Docker/alpine", "variant": "alpinenodeps", "gn_args": "skia_use_fontconfig=false", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-alpine", "libs": "libSkiaSharp", "out_dir": "output/native/alpinenodeps/loongarch64"},
 
-              {"arch": "arm64", "docker_dir": "scripts/Docker/bionic", "variant": "bionic", "gn_args": "", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-bionic", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/bionic/arm64"},
-              {"arch": "x64", "docker_dir": "scripts/Docker/bionic", "variant": "bionic", "gn_args": "", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-bionic", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/bionic/x64"}
+              {"arch": "arm64", "docker_dir": "scripts/Docker/bionic", "variant": "bionic", "gn_args": "", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-bionic", "target": "externals-linux", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/bionic/arm64"},
+              {"arch": "x64", "docker_dir": "scripts/Docker/bionic", "variant": "bionic", "gn_args": "", "extra_args": "--verifyExcluded=fontconfig", "image_tag": "skiasharp-bionic", "target": "externals-linux", "libs": "libSkiaSharp libHarfBuzzSharp", "out_dir": "output/native/bionic/x64"}
             ]
           }
           EOF
@@ -194,6 +194,8 @@ jobs:
           EXTRA_ARGS="${{ matrix.extra_args }}"
           IMAGE_TAG="${{ matrix.image_tag }}"
           NO_ARCH_ARG="${{ matrix.no_arch_arg }}"
+          TARGET="${{ matrix.target }}"
+          TARGET="${TARGET:-externals-linux-clang-cross}"
 
           echo "=========================================================="
           echo "[docker build] dir=${DOCKER_DIR} arch=${ARCH} image=${IMAGE_TAG}"
@@ -208,7 +210,7 @@ jobs:
           cat > cmd.sh <<EOF
           set -euo pipefail
           dotnet tool restore
-          dotnet cake --target=externals-linux-clang-cross --verbosity=normal --configuration=Release \
+          dotnet cake --target=${TARGET} --verbosity=normal --configuration=Release \
             --buildarch=${ARCH} --variant=${VARIANT} --gnArgs="${GN_ARGS} " ${EXTRA_ARGS}
           EOF
 
