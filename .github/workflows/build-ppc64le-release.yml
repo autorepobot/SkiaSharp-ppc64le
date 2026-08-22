@@ -464,7 +464,7 @@ jobs:
             output/ppc64le-release/SHA256SUMS.txt \
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
-            --title "SkiaSharp ${{ inputs.version }} - ppc64le" \
+            --title "SkiaSharp ${{ inputs.version }} \
             --generate-notes
 
       - name: Print release information
