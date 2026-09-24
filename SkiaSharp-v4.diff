@@ -169,7 +169,7 @@ new file mode 100644
 index 000000000000..5d9f4d926eba
 --- /dev/null
 +++ b/scripts/infra/native/linux/docker/glibc-ppc64le/Dockerfile
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,133 @@
 +# glibc cross-compilation image for ppc64le (powerpc64le-linux-gnu).
 +#
 +# The .NET cross-image for ppc64le exists but does NOT include libc++.
@@ -188,7 +188,7 @@ index 000000000000..5d9f4d926eba
 +FROM mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net10.0-crossdeps-builder-amd64 AS builder
 +ARG ROOTFS_DIR
 + 
-+RUN PYTHON_EXECUTABLE="$ROOTFS_PIP_HOME/bin/python" /scripts/eng/common/cross/build-rootfs.sh ppc64le bionic --skipunmount --skipemulation
++RUN PYTHON_EXECUTABLE="$ROOTFS_PIP_HOME/bin/python" /scripts/eng/common/cross/build-rootfs.sh ppc64le bionic --skipunmount --skipemulation --skipsigcheck
 + 
 +RUN TARGET_TRIPLE="powerpc64le-linux-gnu" && \
 +    GCC_VER=$(basename "$(find "$ROOTFS_DIR/usr/include/c++/" -mindepth 1 -maxdepth 1 -type d | sort -V | head -n1)") && \
@@ -257,6 +257,8 @@ index 000000000000..5d9f4d926eba
 +    && bash dotnet-install.sh --version ${DOTNET_SDK_VERSION} --install-dir /usr/share/dotnet --verbose \
 +    && rm dotnet-install.sh \
 +    && dotnet --info
++ENV DOTNET_ROOT=/usr/share/dotnet
++ENV PATH="/usr/share/dotnet:${PATH}"
 + 
 +ENV CC=clang CXX=clang++
 + 
