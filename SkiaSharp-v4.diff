@@ -114,7 +114,7 @@ diff --git a/scripts/azure-templates-stages-native-linux.yml b/scripts/azure-tem
 index 283ace51fed1..3a2a074516aa 100644
 --- a/scripts/azure-templates-stages-native-linux.yml
 +++ b/scripts/azure-templates-stages-native-linux.yml
-@@ -47,12 +47,16 @@ stages:
+@@ -47,10 +47,13 @@ stages:
                docker: scripts/infra/native/linux/docker/glibc
                target: externals-linux-clang-cross
 -            # x86 needs libc++ built first (the .NET team doesn't ship it for x86).
