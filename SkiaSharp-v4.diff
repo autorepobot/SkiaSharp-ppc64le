@@ -175,18 +175,18 @@ index 000000000000..5d9f4d926eba
 +#
 +# Based on: dotnet/dotnet-buildtools-prereqs-docker
 +#   src/azurelinux/3.0/net10.0/cross/amd64/Dockerfile
-+ 
++
 +# ===========================================================================
 +# Stage 1: Build libc++ for ppc64le
 +# ===========================================================================
-+ 
++
 +ARG ROOTFS_DIR=/crossrootfs/ppc64le
-+ 
++
 +FROM mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net10.0-crossdeps-builder-amd64 AS builder
 +ARG ROOTFS_DIR
-+ 
++
 +RUN PYTHON_EXECUTABLE="$ROOTFS_PIP_HOME/bin/python" /scripts/eng/common/cross/build-rootfs.sh ppc64le bionic --skipunmount --skipemulation --skipsigcheck
-+ 
++
 +RUN TARGET_TRIPLE="powerpc64le-linux-gnu" && \
 +    GCC_VER=$(basename "$(find "$ROOTFS_DIR/usr/include/c++/" -mindepth 1 -maxdepth 1 -type d | sort -V | head -n1)") && \
 +    CPP_INCLUDES="$ROOTFS_DIR/usr/include/c++/$GCC_VER" && \
@@ -218,19 +218,19 @@ index 000000000000..5d9f4d926eba
 +        -DCOMPILER_RT_INSTALL_PATH="/usr/local/lib/clang/$CLANG_MAJOR_VERSION" && \
 +    cmake --build runtimes -j $(getconf _NPROCESSORS_ONLN) && \
 +    cmake --install runtimes --prefix "$ROOTFS_DIR/usr"
-+ 
++
 +# ===========================================================================
 +# Stage 2: Final image with libc++ + SkiaSharp build environment
 +# ===========================================================================
-+ 
++
 +FROM mcr.microsoft.com/dotnet-buildtools/prereqs:azurelinux-3.0-net10.0-crossdeps-llvm-amd64
 +ARG ROOTFS_DIR
-+ 
++
 +COPY --from=builder /usr/local/lib/clang /usr/local/lib/clang/
 +COPY --from=builder $ROOTFS_DIR $ROOTFS_DIR
-+ 
++
 +SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
-+ 
++
 +# Toolchain variables for ppc64le (hardcoded).
 +RUN echo "export TOOLCHAIN_ARCH=powerpc64le-linux-gnu" > /etc/skia-env \
 +    && echo "export TOOLCHAIN_ARCH_SHORT=ppc64el" >> /etc/skia-env \
@@ -246,7 +246,7 @@ index 000000000000..5d9f4d926eba
 +         echo "FATAL: libc++ headers not found" ; \
 +         exit 1 ; \
 +       fi
-+ 
++
 +# Install .NET SDK
 +ARG DOTNET_SDK_VERSION=10.0.401
 +ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
@@ -256,11 +256,11 @@ index 000000000000..5d9f4d926eba
 +    && dotnet --info
 +ENV DOTNET_ROOT=/usr/share/dotnet
 +ENV PATH="/usr/share/dotnet:${PATH}"
-+ 
++
 +ENV CC=clang CXX=clang++
-+ 
++
 +RUN tdnf install -y zstd && tdnf clean all
-+ 
++
 +# Install fontconfig headers into the sysroot (ppc64el).
 +RUN . /etc/skia-env \
 +    && FC_REPO=http://ports.ubuntu.com/ubuntu-ports \
@@ -294,9 +294,9 @@ index 000000000000..5d9f4d926eba
 +         exit 1 ; \
 +       fi \
 +    && rm -rf /tmp/fontconfig
-+ 
++
 +WORKDIR /work
-+ 
++
 +COPY ./startup.sh /
 +RUN chmod +x /startup.sh
 +ENTRYPOINT [ "/startup.sh" ]
